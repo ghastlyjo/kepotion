@@ -1,15 +1,26 @@
 export async function onRequest(context) {
-  const db = context.env.DB;
-  const url = new URL(context.request.url);
-  const method = context.request.method;
-  const id = url.searchParams.get('id');
+  const env = context.env;
+  const db = env.DB || env.db || env.DATABASE || env.keepotion_db;
+
   const cors = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json'
   };
-  if (method === 'OPTIONS') return new Response(null, { headers: cors });
+  if (context.request.method === 'OPTIONS') return new Response(null, { headers: cors });
+
+  if (!db) {
+    return new Response(JSON.stringify({ 
+      error: 'D1 binding not found. Go to Pages > Settings > Functions > D1 bindings and set Variable name = DB and select keepotion-db. Then Retry deployment.',
+      available_bindings: Object.keys(env)
+    }), { status: 500, headers: cors });
+  }
+
+  const url = new URL(context.request.url);
+  const method = context.request.method;
+  const id = url.searchParams.get('id');
+
   try {
     if (method === 'GET') {
       const { results } = await db.prepare("SELECT * FROM notes ORDER BY updated_at DESC").all();
@@ -57,6 +68,6 @@ export async function onRequest(context) {
     }
     return new Response(JSON.stringify({ error: 'Invalid' }), { status: 400, headers: cors });
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors });
+    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), { status: 500, headers: cors });
   }
 }
